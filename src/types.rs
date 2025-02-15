@@ -1,16 +1,44 @@
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Card {
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub sfid: String,
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub colours: Vec<String>,
+    #[serde(default)]
     pub type_line: String,
+    #[serde(default)]
     pub cmc: usize,
+    #[serde(default)]
     pub decks: Vec<String>,
+    #[serde(default)]
     pub mainboard_count: usize,
+    #[serde(default)]
     pub sideboard_count: usize,
+}
+
+pub struct DebugDeser<'de, T: Deserialize<'de> + Clone>(T, PhantomData<&'de T>);
+impl<'de, T: Deserialize<'de> + Clone> Deserialize<'de> for DebugDeser<'de, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de> {
+        
+        // log the input as a string without consuming deserializer
+        let input = Box::leak(Box::new(String::deserialize(deserializer)?.to_string())) as &'static str;
+        println!("Deserializing: {}", input);
+
+        // Deserialize the input into the desired type
+        let value = serde_json::from_str(&input).map_err(serde::de::Error::custom)?;
+        Ok(DebugDeser(value, PhantomData))
+
+    }
 }
 
 impl Into<DeckCard> for Card {

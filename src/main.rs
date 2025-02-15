@@ -4,7 +4,7 @@ use bson::{doc, Bson, Document};
 use futures::{future::{join_all, try_join_all}, StreamExt, TryStreamExt};
 use mongodb::{Client, Database};
 use serde::{Deserialize, Serialize};
-use types::{Card, Deck, DeckCard, Event, Point, UsageOverTime};
+use types::{Card, DebugDeser, Deck, DeckCard, Event, Point, UsageOverTime};
 
 mod types;
 
@@ -17,8 +17,8 @@ async fn main() {
         .unwrap()
         .database("seph");
 
-    update_events(&db).await;
-    update_cards(&db).await;
+    // update_events(&db).await;
+    // update_cards(&db).await;
     update_card_usage(&db).await;
 }
 
@@ -217,10 +217,10 @@ async fn card_stats(db: Database) -> Stats {
         .find(doc! {})
         .await
         .unwrap()
+        .filter_map(|v| async { v.ok() })
         .collect::<Vec<_>>()
         .await
         .into_iter()
-        .filter_map(|v| v.ok())
         .map(|c| (c.id.to_string(), c))
         .collect::<HashMap<_, Card>>();
 
@@ -273,7 +273,7 @@ async fn card_usage_stats(db: Database) -> Vec<UsageOverTime> {
         |c| {
         let value = db.clone();
         async move {
-            value.clone().collection::<Deck>("decks").find(doc! { "mainboard.id": c.0.clone() }).await.unwrap().map(|d| d.unwrap()).map(|d| {
+            value.clone().collection::<Deck>("decks").find(doc! { "mainboard.id": c.0.clone() }).await.unwrap().filter_map(|d| async { d.ok()}).map(|d| {
             (
                 d.created,
                 (
