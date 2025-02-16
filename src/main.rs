@@ -1,6 +1,7 @@
 use std::{collections::HashMap, env, ops::Not};
 
 use bson::{doc, Bson, Document};
+use chrono::{DateTime, Datelike};
 use futures::{future::{join_all, try_join_all}, StreamExt, TryStreamExt};
 use mongodb::{Client, Database};
 use serde::{Deserialize, Serialize};
@@ -94,12 +95,12 @@ async fn update_events(db: &Database) {
 async fn update_card_usage(db: &Database) {
     let usage = card_usage_stats(db.clone()).await;
     join_all(usage.into_iter().map(|e| async {
-        match db.collection::<Bson>("usage").find_one(doc! { "id": e.id.clone() }).await.unwrap().is_some() {
+        match db.collection::<Bson>("usages").find_one(doc! { "id": e.id.clone() }).await.unwrap().is_some() {
             true => {
-                db.collection::<UsageOverTime>("usage").replace_one(doc! { "type": e.id.clone() }, e).await.unwrap();
+                db.collection::<UsageOverTime>("usages").replace_one(doc! { "type": e.id.clone() }, e).await.unwrap();
             }
             false => {
-                db.collection::<UsageOverTime>("usage").insert_one(e).await.unwrap();
+                db.collection::<UsageOverTime>("usages").insert_one(e).await.unwrap();
             }
         }}
     )).await;
@@ -275,7 +276,7 @@ async fn card_usage_stats(db: Database) -> Vec<UsageOverTime> {
         async move {
             value.clone().collection::<Deck>("decks").find(doc! { "mainboard.id": c.0.clone() }).await.unwrap().filter_map(|d| async { d.ok()}).map(|d| {
             (
-                d.created,
+                DateTime::from_timestamp_millis(d.created as i64).unwrap().with_day0(0).unwrap().timestamp_millis() as usize,
                 (
                     d.mainboard.iter().filter(|c2| c2.id == *c.0).count(),
                     d.sideboard.iter().filter(|c2| c2.id == *c.0).count()
